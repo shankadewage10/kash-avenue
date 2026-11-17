@@ -135,7 +135,7 @@ html{scroll-padding-top:calc(130px + env(safe-area-inset-top,0px))}
 .lbs figcaption button{background:none;border:0;border-bottom:1px solid var(--gold);color:var(--ink);font:500 .72rem Jost,sans-serif;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:0;margin-top:2px}
 .nl{background:#000;color:#f6f1e7;text-align:center}.nl h2{color:#f6f1e7}.nl p{color:#cfc8b6;max-width:44ch;margin:14px auto 24px}
 .qv{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:grid;place-items:center;padding:16px}.qv[hidden]{display:none}
-.qb{background:var(--bg);max-width:860px;width:100%;max-height:92vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;position:relative}.qi img{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}.qd{padding:30px}
+.qb{background:var(--bg);max-width:860px;width:100%;max-height:92vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;position:relative}.qi img{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}.qi .qt{display:flex;gap:6px;padding:8px;overflow-x:auto}.qi .qt img{width:58px;height:72px;aspect-ratio:auto;flex:0 0 auto;cursor:pointer;opacity:.55;border:2px solid transparent}.qi .qt img.on{opacity:1;border-color:var(--ink)}.qd{padding:30px}
 .qx{position:absolute;right:10px;top:4px;background:var(--bg);border:0;font-size:2rem;line-height:1;color:var(--ink);cursor:pointer;z-index:2;width:38px;height:38px}
 @media (hover:none){.qvb{opacity:1;transform:none}}
 @media (max-width:700px){.arr{display:none}.hrow .r a,#ctot{display:none}.qb{grid-template-columns:1fr}#q{font-size:.8rem;padding:8px}.catnav{justify-content:flex-start;gap:22px}}
@@ -296,6 +296,7 @@ footer{background:#fff;color:#4a4436;border-top:3px solid var(--gold)}footer h4{
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="supabase-api.js"></script>
 <script>
+function imgsOf(t){return String(t||"").split("|").map(function(z){return z.trim()}).filter(Boolean).slice(0,7)}
 /* ===== EDIT THESE ===== */
 var WHATSAPP="94741698089",CURRENCY="Rs";
 var API_URL="supabase";
@@ -325,7 +326,7 @@ function left(p,z){return p.stock?(p.stock[z]||0):Infinity}
 function low(p,s){var n=p.stock&&s?left(p,s):0;return n>0&&n<=3?'<div class="low">Only '+n+' left</div>':''}
 function refreshProducts(){if(!API_URL)return;kaFetch(API_URL).then(function(r){return r.json()}).then(function(d){var l=mapRows(d.products||[]);if(l.length)start(l)}).catch(function(){})}
 function mapRows(rows){return rows.filter(function(o){return o.name&&(o.status||"").toLowerCase()!=="hidden"}).map(function(o){
-return{name:o.name,cat:o.category||"Other",price:parseInt(String(o.price||"0").replace(/[^0-9]/g,""),10)||0,sizes:String(o.sizes||"One size").split(/[\/|;]/).map(function(z){return z.trim()}).filter(Boolean),col:o.colour||"",img:o.image||"",badge:o.badge||"",stock:pStock(o.stock),sold:(o.status||"").toLowerCase().replace(/\s/g,"")==="soldout"}})}
+return{name:o.name,cat:o.category||"Other",price:parseInt(String(o.price||"0").replace(/[^0-9]/g,""),10)||0,sizes:String(o.sizes||"One size").split(/[\/|;]/).map(function(z){return z.trim()}).filter(Boolean),col:o.colour||"",img:imgsOf(o.image)[0]||"",img2:imgsOf(o.image)[1]||"",imgs:imgsOf(o.image),badge:o.badge||"",stock:pStock(o.stock),sold:(o.status||"").toLowerCase().replace(/\s/g,"")==="soldout"}})}
 function tiles(){$("#fshop").innerHTML=cats.map(function(c){return'<a href="#shop" data-cat="'+esc(c)+'">'+(c==="All"?"New arrivals":esc(c))+'</a>'}).join("");$("#cn").innerHTML='<a href="#featured">New in</a>'+cats.map(function(c){return'<button data-c="'+esc(c)+'" aria-pressed="'+(c===cat)+'">'+(c==="All"?"Shop all":esc(c))+'</button>'}).join("")+'<a href="#lookbook">Lookbook</a><a href="#about">About</a>';$("#tiles").innerHTML=cats.map(function(c){var p=PRODUCTS.filter(function(x){return(c==="All"||x.cat===c)&&x.img})[0];return'<button class="tile'+(p?' pic':'')+'"'+(p?' style="background-image:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,.62)),url('+esc(p.img)+')"':'')+' aria-pressed="'+(c===cat)+'" data-c="'+esc(c)+'">'+(c==="All"?"All pieces":esc(c))+'</button>'}).join("")}
 var TONES=["#e6dcc6","#d9c7a0","#cfc6b4","#e0d4b8","#c9b78d","#d6cbb2","#bfb396","#e8dfc9"];
 function cardHTML(p,i){var s=sel[i]||(p.sizes.length===1?p.sizes[0]:""),tag=p.sold?"Sold out":p.badge;
@@ -404,8 +405,9 @@ function bump(){var b=$("#openBag");b.classList.remove("bump");void b.offsetWidt
 window.addEventListener("scroll",function(){document.querySelector("header").classList.toggle("sc",window.scrollY>10)},{passive:true});
 var Q="",searched=false;
 function qv(i){var p=PRODUCTS[i],s=sel[i]||(p.sizes.length===1?p.sizes[0]:"");
-$("#qimg").innerHTML=(p.img?'<img src="'+esc(p.img)+'" alt="'+esc(p.name)+'">':'')+(p.img2?'<img src="'+esc(p.img2)+'" alt="">':'');
+var L=p.imgs&&p.imgs.length?p.imgs:[p.img,p.img2].filter(Boolean);$("#qimg").innerHTML=(L[0]?'<img id="qmain" src="'+esc(L[0])+'" alt="'+esc(p.name)+'">':'')+(L.length>1?'<div class="qt">'+L.map(function(u,k){return'<img data-qs="'+esc(u)+'" class="'+(k?'':'on')+'" src="'+esc(u)+'" alt="Photo '+(k+1)+'">'}).join("")+'</div>':'');
 $("#qd").innerHTML='<h2 style="font-size:1.9rem;margin-bottom:8px">'+esc(p.name)+'</h2><div class="pr" style="font-size:1.15rem">'+money(p.price)+'</div>'+(p.col?'<div class="cl">Colour: '+esc(p.col)+'</div>':'')+'<p style="color:var(--muted);margin:16px 0 6px">Size</p><div class="sizes">'+p.sizes.map(function(z){return'<button class="sz'+(left(p,z)<1?' out':'')+'" data-p="'+i+'" data-z="'+esc(z)+'" aria-pressed="'+(s===z)+'"'+(left(p,z)<1?' disabled':'')+'>'+esc(z)+'</button>'}).join("")+'</div><button class="btn" style="width:100%;margin-top:14px" data-add="'+i+'"'+(p.sold?' disabled':'')+'>'+(p.sold?'Sold out':'Add to cart')+'</button>';$("#qv").hidden=false}
+document.addEventListener("click",function(e){var t=e.target;if(t.dataset&&t.dataset.qs){var mm=document.getElementById("qmain");if(mm)mm.src=t.dataset.qs;document.querySelectorAll(".qt img").forEach(function(x){x.classList.toggle("on",x===t)})}});
 $("#qx").onclick=function(){$("#qv").hidden=true};
 $("#qv").addEventListener("click",function(e){if(e.target===this)this.hidden=true});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")$("#qv").hidden=true});
