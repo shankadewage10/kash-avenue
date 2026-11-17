@@ -49,6 +49,7 @@
       var r = await sb.functions.invoke("send-invoice", { body: { ref: ref, force: !!force } });
       if (r.error) {
         var msg = r.error.message || "Could not send";
+        if (r.error.name === "FunctionsFetchError") msg = "The email function could not be reached. In Supabase, check that an Edge Function named exactly send-invoice is deployed and active.";
         try { var j = await r.error.context.json(); if (j && j.error) msg = j.error; } catch (e) {}
         return { ok: false, error: msg };
       }
@@ -68,7 +69,7 @@
     if (res[0].error) throw res[0].error;
     var st = {}; (res[1].data || []).forEach(function (r) { st[r.key] = r.value; });
     return { v: 3, settings: st, products: res[0].data.map(function (p) {
-      return { name: p.name, category: p.category, price: String(p.price), sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stStr(p.stock) };
+      return { name: p.name, code: p.code || "", category: p.category, price: String(p.price), sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stStr(p.stock) };
     }) };
   }
 
@@ -135,7 +136,7 @@
       if (a === "ping") { r = await sb.rpc("is_admin"); return r.data === true ? { ok: true } : { ok: false, error: "This account is not an admin." }; }
       if (a === "save") {
         r = await sb.rpc("admin_save_products", { p_products: (b.products || []).map(function (p) {
-          return { name: p.name, category: p.category, price: p.price, sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stObj(p.stock) };
+          return { name: p.name, code: p.code, category: p.category, price: p.price, sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stObj(p.stock) };
         }) });
         return r.error ? fail(r.error) : { ok: true };
       }
