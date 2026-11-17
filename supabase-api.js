@@ -43,6 +43,18 @@
       "<p style='margin-top:22px;font-size:12px;color:#777'>Thank you for shopping with " + esc(BIZ.name) + ". Questions? Message us on WhatsApp " + esc(BIZ.whatsapp) + ".</p></div></body></html>";
   }
 
+  var HOLDS = ["Confirmed", "Packed", "Shipped", "Delivered"];
+  async function sendInvoice(ref, force) {
+    try {
+      var r = await sb.functions.invoke("send-invoice", { body: { ref: ref, force: !!force } });
+      if (r.error) {
+        var msg = r.error.message || "Could not send";
+        try { var j = await r.error.context.json(); if (j && j.error) msg = j.error; } catch (e) {}
+        return { ok: false, error: msg };
+      }
+      return r.data && r.data.ok ? { ok: true } : { ok: false, error: (r.data && r.data.error) || "Could not send" };
+    } catch (e) { return fail(e); }
+  }
   async function session() { var r = await sb.auth.getSession(); return r.data && r.data.session; }
   async function profile() {
     var s = await session(); if (!s) return null;
@@ -108,7 +120,7 @@
         return { ok: true, token: "session", profile: await profile() };
       }
       if (a === "order") {
-        r = await sb.rpc("place_order", { p_ref: b.ref || null, p_address: b.address || "", p_items: b.items || [] });
+        r = await sb.rpc("place_order", { p_ref: b.ref || null, p_name: b.name || "", p_phone: phone(b.phone), p_email: String(b.email || "").trim(), p_address: b.address || "", p_items: b.items || [] });
         return r.error ? fail(r.error) : r.data;
       }
       if (a === "me") {
@@ -150,10 +162,15 @@
         if (r.error) return fail(r.error);
         if (!r.data.ok) return r.data;
         var stock = {}; Object.keys(r.data.stock || {}).forEach(function (k) { stock[k] = stStr(r.data.stock[k]); });
-        return { ok: true, order: ordOld(r.data.order), stock: stock, mail: "" };
+        var ord = ordOld(r.data.order), mail = "";
+        if (ord.invoiceNo && !ord.invoiceSent && HOLDS.indexOf(ord.status) > -1) {
+          if (!ord.email) mail = "No email on this order. Use View invoice and send it on WhatsApp.";
+          else { var em = await sendInvoice(ord.ref, false); if (em.ok) { mail = "sent"; ord.invoiceSent = new Date().toISOString(); } else mail = "Invoice email failed: " + em.error; }
+        }
+        return { ok: true, order: ord, stock: stock, mail: mail };
       }
       if (a === "invoice" || a === "invoiceResend") {
-        if (a === "invoiceResend") return { ok: false, error: "Emailing invoices is not switched on yet. Open the invoice and send it to the customer on WhatsApp." };
+        if (a === "invoiceResend") return await sendInvoice(b.ref, true);
         r = await sb.from("orders").select("*").eq("ref", b.ref).maybeSingle();
         if (!r.data) return { ok: false, error: "Order not found" };
         var o = ordOld(r.data); if (!o.invoiceNo) return { ok: false, error: "Approve the order first to create an invoice." };
