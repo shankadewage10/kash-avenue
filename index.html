@@ -279,14 +279,17 @@ footer{background:#fff;color:#4a4436;border-top:3px solid var(--gold)}footer h4{
     <ul id="items"></ul>
     <div class="total"><span>Total</span><span id="total"></span></div>
     <div id="who" class="note" style="margin:0 0 10px"></div>
-        <label for="ad">Delivery address *</label><input id="ad" autocomplete="street-address">
+    <label for="gn">Your name *</label><input id="gn" autocomplete="name">
+    <label for="gp">Phone number *</label><input id="gp" type="tel" inputmode="tel" autocomplete="tel">
+    <label for="ge">Email (optional, for your invoice)</label><input id="ge" type="email" autocomplete="email">
+    <label for="ad">Delivery address *</label><input id="ad" autocomplete="street-address">
     <p id="err" role="alert" style="margin:0 0 8px;color:#b3261e"></p>
     <button class="btn" id="send">Place order</button>
-    <p class="note" style="margin:8px 0 0">We review every order. Once we approve it, your invoice is emailed to you.</p>
+    <p class="note" style="margin:8px 0 0">You do not need an account. We review every order. If you give an email, we send your invoice there once we approve it.</p>
   </div>
   <div class="cv done" id="doneView" hidden>
     <h2>Order received</h2><h3 id="ref"></h3>
-    <p>Thank you! Your order is waiting for our approval. Once we approve it, we email your invoice to <b id="dmail"></b>. Please also tap <strong>Send</strong> in WhatsApp so we see your order straight away.</p>
+    <p>Thank you! Your order is waiting for our approval. <span id="dnote"></span> Please also tap <strong>Send</strong> in WhatsApp so we see your order straight away.</p>
     <a class="btn wa" id="again" target="_blank" rel="noopener">Open WhatsApp again</a>
     <button class="btn line" id="newOrder">Start a new order</button>
   </div>
@@ -363,20 +366,24 @@ $("#openBag").onclick=function(){openCart(true)};$("#closeBag").onclick=$("#shad
 document.addEventListener("keydown",function(e){if(e.key==="Escape")openCart(false)});
 $("#send").onclick=function(){
 if(!bag.length)return;var btn=this,ad=$("#ad").value.trim();
-if(API_URL&&!ACC){aView("in","Please sign in or register to place your order.");return}
+var gn=$("#gn").value.trim(),gp=$("#gp").value.trim(),ge=$("#ge").value.trim(),dg=gp.replace(/\D/g,"");
+if(dg.charAt(0)==="0"&&dg.length===10)dg="94"+dg.slice(1);else if(dg.length===9)dg="94"+dg;
+if(gn.length<2){$("#err").textContent="Please enter your name.";return}
+if(!/^\d{9,15}$/.test(dg)){$("#err").textContent="Please enter a valid phone number.";return}
+if(ge&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ge)){$("#err").textContent="That email address does not look right. You can leave it empty.";return}
 if(!ad){$("#err").textContent="Please enter your delivery address.";return}
-$("#err").textContent="";try{localStorage.setItem("ka_addr",ad)}catch(e){}
-var P=ACC?ACC.p:{name:"Guest",phone:"-",email:""};
+$("#err").textContent="";try{localStorage.setItem("ka_addr",ad);localStorage.setItem("ka_guest",JSON.stringify({n:gn,p:gp,e:ge}))}catch(e){}
+var P={name:gn,phone:gp,email:ge};
 var ref="KA-"+Date.now().toString(36).toUpperCase().slice(-6),t=0;
 var l=bag.map(function(i){t+=i.q*i.p.price;return"• "+i.q+" × "+i.p.name+" (size "+i.z+") – "+money(i.q*i.p.price)});
 var m="Hi Kash Avenue, I would like to place an order.\nOrder no: "+ref+"\n\n"+l.join("\n")+"\n\nTotal: "+money(t)+"\nName: "+P.name+"\nPhone: "+P.phone+(P.email?"\nEmail: "+P.email:"")+"\nDelivery address: "+ad;
 var url=wa(m),w=window.open("about:blank","_blank");
 function reset(){btn.disabled=false;btn.textContent="Place order"}
-function done(){$("#ref").textContent=ref;$("#dmail").textContent=P.email||"your email";$("#again").href=url;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
+function done(){$("#ref").textContent=ref;$("#dnote").textContent=P.email?"Once we approve it, we email your invoice to "+P.email+".":"Once we approve it, we will confirm with you on WhatsApp.";$("#again").href=url;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
 if(!API_URL){done();return}
 btn.disabled=true;btn.textContent="Placing your order…";
 var ctl=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ctl)ctl.abort()},12000);
-kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},signal:ctl?ctl.signal:undefined,body:JSON.stringify({action:"order",token:ACC.t,ref:ref,address:ad,items:bag.map(function(i){return{name:i.p.name,size:i.z,qty:i.q,price:i.p.price}})})})
+kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},signal:ctl?ctl.signal:undefined,body:JSON.stringify({action:"order",name:gn,phone:dg,email:ge,ref:ref,address:ad,items:bag.map(function(i){return{name:i.p.name,size:i.z,qty:i.q,price:i.p.price}})})})
 .then(function(r){return r.json()}).then(function(r){clearTimeout(to);
 if(r&&r.ok===false&&r.error==="stock"){if(w)w.close();reset();$("#err").textContent="Sorry, not enough stock: "+r.short.map(function(x){return x.name+" ("+x.size+") - only "+x.left+" left"}).join(", ")+". Please change your cart.";refreshProducts();return}
 if(r&&r.ok===false&&r.error==="auth"){if(w)w.close();reset();ACC=null;accSave();aView("in","Your session has expired. Please sign in again.");return}
@@ -387,6 +394,14 @@ var DEFS={};
 function T(id,v){var e=$("#"+id);if(!e)return;if(!(id in DEFS))DEFS[id]=e.textContent;e.textContent=v||DEFS[id]}
 function okU(u){return/^https?:\/\//i.test(u||"")}
 function L(id,v){var e=$("#"+id);if(!e)return;if(!(id in DEFS))DEFS[id]=e.getAttribute("href");e.setAttribute("href",okU(v)?v:DEFS[id])}
+function applyBanners(s){var all=document.querySelectorAll(".hs"),changed=false;
+ for(var n=2;n<=6;n++){var sl=all[n-1];if(!sl)continue;var k="b"+n,im=sl.querySelector(".slides img"),eb=sl.querySelector(".eyebrow"),ti=sl.querySelector(".ht"),pp=sl.querySelector(".copy p"),bt=sl.querySelector(".acts .btn");
+  if(!im||!eb||!ti||!pp||!bt)continue;
+  if(!sl._d)sl._d={src:im.getAttribute("src"),eb:eb.textContent,ti:ti.textContent,pp:pp.textContent,bt:bt.textContent,c:bt.dataset.c};
+  var d=sl._d;im.src=okU(s[k+"img"])?s[k+"img"]:d.src;
+  eb.textContent=s[k+"eyebrow"]||d.eb;ti.textContent=s[k+"title"]||d.ti;pp.textContent=s[k+"text"]||d.pp;bt.textContent=s[k+"btn"]||d.bt;bt.dataset.c=s[k+"cat"]||d.c;
+  var hide=String(s[k+"show"]||"").toLowerCase()==="no";if(sl.hidden!==hide){sl.hidden=hide;changed=true}}
+ if(changed){[].forEach.call(all,function(x){x.classList.remove("on")});try{hdBuild();hplay()}catch(e){}}}
 function applySettings(s){s=s||{};
 if(!("wa0" in DEFS)){DEFS.wa0=WHATSAPP;DEFS.barnum=$("#barnum").textContent;DEFS.cur0=CURRENCY}
 var w=String(s.whatsapp||"").replace(/\D/g,"");WHATSAPP=w||DEFS.wa0;$("#barnum").textContent=w?"+"+w:DEFS.barnum;
@@ -396,7 +411,7 @@ T("announce",s.announce);T("hT",s.heroTitle);T("hP",s.heroText);T("hB",s.heroBtn
 T("aT",s.aboutTitle);T("aP",s.aboutText);T("aQ",s.aboutQuote);T("howT",s.howTitle);T("fT",s.footerText);
 for(var i=1;i<=3;i++){T("s"+i+"t",s["s"+i+"t"]);T("s"+i+"d",s["s"+i+"d"])}
 L("ig",s.instagram);L("tt",s.tiktok);L("fb",s.facebook);
-applyTheme(s);var hi=$("#hI");if(!("hero0" in DEFS))DEFS.hero0=hi.src;hi.src=okU(s.heroImage)?s.heroImage:DEFS.hero0;hi.classList.toggle("photo",okU(s.heroImage));$("#slides").classList.toggle("single",okU(s.heroImage));
+applyTheme(s);applyBanners(s);var hi=$("#hI");if(!("hero0" in DEFS))DEFS.hero0=hi.src;hi.src=okU(s.heroImage)?s.heroImage:DEFS.hero0;hi.classList.toggle("photo",okU(s.heroImage));$("#slides").classList.toggle("single",okU(s.heroImage));
 var bl=$("#aBlk");if(okU(s.aboutImage)){bl.style.background="url('"+s.aboutImage+"') center/cover";$("#aQ").style.display="none"}else{bl.style.background="";$("#aQ").style.display=""}
 if(typeof started!=="undefined"&&started){grid();render()}}
 var io=window.IntersectionObserver?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target)}})},{threshold:.12,rootMargin:"0px 0px -40px 0px"}):null;
@@ -413,7 +428,7 @@ $("#qv").addEventListener("click",function(e){if(e.target===this)this.hidden=tru
 document.addEventListener("keydown",function(e){if(e.key==="Escape")$("#qv").hidden=true});
 $("#q").addEventListener("input",function(){Q=this.value.trim().toLowerCase();grid();if(Q&&!searched){searched=true;document.getElementById("shop").scrollIntoView({behavior:"smooth"})}});
 var hk=0,ht=0,hx=0;
-function hsAll(){return document.querySelectorAll(".hs")}
+function hsAll(){return[].filter.call(document.querySelectorAll(".hs"),function(x){return!x.hidden})}
 function hdBuild(){var hs=hsAll(),hd=document.getElementById("hd");hd.innerHTML=[].map.call(hs,function(_,i){return'<button aria-label="Banner '+(i+1)+'"></button>'}).join("");hk=0;[].forEach.call(hs,function(x,i){x.classList.toggle("on",i===0)});hd.children[0].classList.add("on")}
 function hgo(n){var hs=hsAll(),d=document.getElementById("hd").children;hs[hk].classList.remove("on");d[hk].classList.remove("on");hk=(n+hs.length)%hs.length;hs[hk].classList.add("on");d[hk].classList.add("on")}
 function hplay(){clearInterval(ht);if(!(window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches))ht=setInterval(function(){hgo(hk+1)},6500)}
@@ -426,7 +441,8 @@ hplay();
 var ACC=null;try{ACC=JSON.parse(localStorage.getItem("ka_acc")||"null")}catch(e){}
 var AV={email:""},MY=[],ST={New:"Pending approval",Confirmed:"Approved",Packed:"Packed",Shipped:"Shipped",Delivered:"Delivered",Cancelled:"Cancelled"};
 function apiPost(b){return kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(b)}).then(function(r){return r.json()})}
-function who(){var e=$("#who");if(!e)return;e.innerHTML=!API_URL?"":ACC?'Ordering as <b>'+esc(ACC.p.name)+'</b><br>'+esc(ACC.p.phone)+' · '+esc(ACC.p.email)+' · <a href="#" data-a="out">Sign out</a>':'<button class="btn line" data-a="open" style="width:100%">Sign in or register to order</button>'}
+function who(){var e=$("#who");if(!e)return;e.innerHTML=!API_URL?"":ACC?'Signed in as <b>'+esc(ACC.p.name)+'</b> · <a href="#" data-a="out">Sign out</a>':'Have an account? <a href="#" data-a="open">Sign in</a> (optional)';
+if(ACC&&$("#gn")){if(!$("#gn").value)$("#gn").value=ACC.p.name||"";if(!$("#gp").value)$("#gp").value=ACC.p.phone||"";if(!$("#ge").value)$("#ge").value=ACC.p.email||""}}
 function accSave(){try{if(ACC)localStorage.setItem("ka_acc",JSON.stringify(ACC));else localStorage.removeItem("ka_acc")}catch(e){}$("#acc").textContent=ACC?"Hi, "+ACC.p.name.split(" ")[0]:"Sign in";who()}
 function aClose(){$("#am").hidden=true}
 function fi(id,lab,type,val,ac){return'<label for="'+id+'">'+lab+'</label><input id="'+id+'" type="'+(type||"text")+'" value="'+esc(val||"")+'" autocomplete="'+(ac||"off")+'">'}
@@ -460,7 +476,7 @@ $("#ax").onclick=aClose;$("#am").addEventListener("click",function(e){if(e.targe
 $("#acc").onclick=function(){ACC?aView("acct"):aView("in")};
 $("#av").addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.tagName==="INPUT"){var b=$("#av .btn:not(.line)");if(b)b.click()}});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")aClose()});
-try{$("#ad").value=localStorage.getItem("ka_addr")||""}catch(e){}
+try{$("#ad").value=localStorage.getItem("ka_addr")||"";var kg=JSON.parse(localStorage.getItem("ka_guest")||"null");if(kg){$("#gn").value=kg.n||"";$("#gp").value=kg.p||"";$("#ge").value=kg.e||""}}catch(e){}
 accSave();
 
 var asPause=0,asHover=false;
