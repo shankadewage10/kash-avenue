@@ -200,5 +200,13 @@
     var p = await post({ action: "ping" }); if (!p.ok) await sb.auth.signOut(); return p;
   };
   window.kaAdminResume = async function () { return (await session()) ? post({ action: "ping" }) : { ok: false }; };
+  window.kaUploadFile = async function (file) {      // videos and other big files go straight to storage
+    try {
+      var path = Date.now() + "-" + String(file.name || "video.mp4").replace(/[^\w.-]+/g, "-");
+      var up = await sb.storage.from(BUCKET).upload(path, file, { contentType: file.type || "video/mp4", cacheControl: "31536000" });
+      if (up.error) return fail(up.error);
+      return { ok: true, url: sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
+    } catch (e) { return fail(e); }
+  };
   window.kaSignOut = function () { return sb.auth.signOut(); };
 })();
