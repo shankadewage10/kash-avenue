@@ -19,26 +19,43 @@
   function ordOld(o) {
     return { ref: o.ref, created: o.created, status: o.status, name: o.name || "", phone: o.phone || "", address: o.address || "",
       items: o.items || [], total: String(o.total || 0), paid: o.paid ? "yes" : "", note: o.note || "", deducted: o.deducted ? "yes" : "",
-      email: o.email || "", cid: o.customer_id || "", shipping: o.shipping > 0 ? String(o.shipping) : "", invoiceNo: o.invoice_no || "", invoiceSent: o.invoice_sent || "" };
+      email: o.email || "", cid: o.customer_id || "", shipping: o.shipping > 0 ? String(o.shipping) : "", invoiceNo: o.invoice_no || "", invoiceSent: o.invoice_sent || "", discType: o.discount_type || "", discValue: o.discount_value || 0 };
+  }
+  // Same maths as the database: line discounts, then order discount, then delivery.
+  function calcOrder(o) {
+    var lines = (o.items || []).map(function (i) {
+      var gross = i.qty * i.price, t = i.dtype || "", v = Math.max(0, Number(i.dval) || 0), d = 0;
+      if (t === "pct") d = Math.round(gross * Math.min(v, 100) / 100); else if (t === "amt") d = Math.min(Math.floor(v), gross); else t = "";
+      return { gross: gross, disc: d, net: gross - d, type: t, val: v };
+    });
+    var sub = lines.reduce(function (a, l) { return a + l.net; }, 0), t = o.discType || "", v = Math.max(0, Number(o.discValue) || 0), od = 0;
+    if (t === "pct") od = Math.round(sub * Math.min(v, 100) / 100); else if (t === "amt") od = Math.min(Math.floor(v), sub);
+    var ship = Math.max(0, num(o.shipping));
+    return { lines: lines, sub: sub, orderDisc: od, ship: ship, total: sub - od + ship };
   }
   function invoiceHtml(o) {
-    var sum = o.items.reduce(function (a, x) { return a + x.price * x.qty; }, 0), ship = num(o.shipping), tot = sum + ship, d = new Date(o.created);
-    var rows = o.items.map(function (i) {
-      return "<tr><td style='padding:8px;border-bottom:1px solid #eadfc2'>" + esc(i.name) + "<br><span style='color:#777;font-size:12px'>Size " + esc(i.size) + "</span></td>" +
-        "<td style='padding:8px;border-bottom:1px solid #eadfc2;text-align:center'>" + i.qty + "</td>" +
-        "<td style='padding:8px;border-bottom:1px solid #eadfc2;text-align:right'>" + money(i.price) + "</td>" +
-        "<td style='padding:8px;border-bottom:1px solid #eadfc2;text-align:right'>" + money(i.price * i.qty) + "</td></tr>";
+    var c = calcOrder(o), d = new Date(o.created), anyLine = c.lines.some(function (l) { return l.disc > 0; });
+    var cell = "padding:8px;border-bottom:1px solid #eadfc2";
+    var rows = o.items.map(function (i, n) {
+      var l = c.lines[n];
+      return "<tr><td style='" + cell + "'>" + esc(i.name) + "<br><span style='color:#777;font-size:12px'>Size " + esc(i.size) + "</span></td>" +
+        "<td style='" + cell + ";text-align:center'>" + i.qty + "</td>" +
+        "<td style='" + cell + ";text-align:right'>" + money(i.price) + "</td>" +
+        (anyLine ? "<td style='" + cell + ";text-align:right;color:#a33'>" + (l.disc > 0 ? "&minus;" + money(l.disc) + (l.type === "pct" ? "<br><span style='font-size:12px'>(" + l.val + "%)</span>" : "") : "") + "</td>" : "") +
+        "<td style='" + cell + ";text-align:right'>" + money(l.net) + "</td></tr>";
     }).join("");
+    var odLabel = "Order discount" + (o.discType === "pct" ? " (" + Math.min(o.discValue, 100) + "%)" : "");
     return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Invoice " + esc(o.invoiceNo) + "</title></head><body style='margin:0;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;color:#1a1405'>" +
       "<div style='max-width:680px;margin:0 auto;background:#fff;padding:32px;border-top:6px solid #c9a24d'>" +
       "<table width='100%'><tr><td><div style='font-size:28px;letter-spacing:4px'><b>" + esc(BIZ.name).toUpperCase() + "</b></div><div style='color:#9a7420;font-size:12px;letter-spacing:3px'>WEAR YOUR STORY</div></td>" +
       "<td style='text-align:right'><div style='font-size:22px;color:#9a7420'><b>INVOICE</b></div><div style='font-size:13px'>No: " + esc(o.invoiceNo) + "<br>Order: " + esc(o.ref) + "<br>Date: " + esc(isNaN(d) ? "" : d.toDateString()) + "</div></td></tr></table>" +
       "<table width='100%' style='margin:22px 0;font-size:14px'><tr><td valign='top'><b>Bill to</b><br>" + esc(o.name) + "<br>" + esc(o.phone) + "<br>" + esc(o.email) + "<br>" + esc(o.address) + "</td>" +
       "<td valign='top' style='text-align:right'><b>From</b><br>" + esc(BIZ.name) + "<br>WhatsApp " + esc(BIZ.whatsapp) + "<br>Instagram " + esc(BIZ.instagram) + (BIZ.address ? "<br>" + esc(BIZ.address) : "") + "</td></tr></table>" +
-      "<table width='100%' style='border-collapse:collapse;font-size:14px'><tr style='background:#faf6ea'><th style='padding:8px;text-align:left'>Item</th><th style='padding:8px'>Qty</th><th style='padding:8px;text-align:right'>Price</th><th style='padding:8px;text-align:right'>Amount</th></tr>" + rows + "</table>" +
-      "<table width='100%' style='margin-top:14px;font-size:14px'><tr><td style='text-align:right'>Subtotal</td><td style='text-align:right;width:130px'>" + money(sum) + "</td></tr>" +
-      "<tr><td style='text-align:right'>Delivery</td><td style='text-align:right'>" + (ship ? money(ship) : "As confirmed") + "</td></tr>" +
-      "<tr><td style='text-align:right;font-size:17px'><b>Total</b></td><td style='text-align:right;font-size:17px'><b>" + money(tot) + "</b></td></tr></table>" +
+      "<table width='100%' style='border-collapse:collapse;font-size:14px'><tr style='background:#faf6ea'><th style='padding:8px;text-align:left'>Item</th><th style='padding:8px'>Qty</th><th style='padding:8px;text-align:right'>Price</th>" + (anyLine ? "<th style='padding:8px;text-align:right'>Discount</th>" : "") + "<th style='padding:8px;text-align:right'>Amount</th></tr>" + rows + "</table>" +
+      "<table width='100%' style='margin-top:14px;font-size:14px'><tr><td style='text-align:right'>Subtotal</td><td style='text-align:right;width:130px'>" + money(c.sub) + "</td></tr>" +
+      (c.orderDisc > 0 ? "<tr><td style='text-align:right;color:#a33'>" + esc(odLabel) + "</td><td style='text-align:right;color:#a33'>&minus;" + money(c.orderDisc) + "</td></tr>" : "") +
+      "<tr><td style='text-align:right'>Delivery</td><td style='text-align:right'>" + (c.ship ? money(c.ship) : "As confirmed") + "</td></tr>" +
+      "<tr><td style='text-align:right;font-size:17px'><b>Total</b></td><td style='text-align:right;font-size:17px'><b>" + money(c.total) + "</b></td></tr></table>" +
       "<p style='margin-top:18px;font-size:14px'><b>Payment status:</b> " + (o.paid === "yes" ? "PAID" : "NOT YET PAID. We will send payment details on WhatsApp.") + "</p>" +
       "<p style='margin-top:22px;font-size:12px;color:#777'>Thank you for shopping with " + esc(BIZ.name) + ". Questions? Message us on WhatsApp " + esc(BIZ.whatsapp) + ".</p></div></body></html>";
   }
@@ -57,6 +74,10 @@
     } catch (e) { return fail(e); }
   }
   async function session() { var r = await sb.auth.getSession(); return r.data && r.data.session; }
+  async function isRemoved(uid) {
+    var r = await sb.from("customers").select("deleted_at").eq("id", uid).maybeSingle();
+    return !!(r.data && r.data.deleted_at);
+  }
   async function profile() {
     var s = await session(); if (!s) return null;
     var r = await sb.from("customers").select("id,name,phone,email,verified").eq("id", s.user.id).maybeSingle();
@@ -118,10 +139,11 @@
           if (/not confirmed/i.test(r.error.message)) { await sb.auth.resend({ type: "signup", email: id }); return { ok: false, error: "verify", email: id }; }
           return { ok: false, error: "Wrong email or password." };
         }
+        if (await isRemoved(r.data.user.id)) { await sb.auth.signOut(); return { ok: false, error: "This account has been removed. Please contact us on WhatsApp." }; }
         return { ok: true, token: "session", profile: await profile() };
       }
       if (a === "order") {
-        if (b.account && !(await session())) return { ok: false, error: "auth" };
+        if (b.account) { var ss = await session(); if (!ss || await isRemoved(ss.user.id)) return { ok: false, error: "auth" }; }
         r = await sb.rpc("place_order", { p_ref: b.ref || null, p_name: b.name || "", p_phone: phone(b.phone), p_email: String(b.email || "").trim(), p_address: b.address || "", p_items: b.items || [] });
         return r.error ? fail(r.error) : r.data;
       }
@@ -130,10 +152,10 @@
         return r.error ? fail(r.error) : r.data;
       }
       if (a === "me") {
-        var s = await session(), p = s && await profile(); if (!p) return { ok: false, error: "auth" };
+        var s = await session(), p = s && await profile(); if (!p || await isRemoved(s.user.id)) return { ok: false, error: "auth" };
         var q = await sb.from("orders").select("*").eq("customer_id", s.user.id).order("created", { ascending: false });
         return { ok: true, profile: p, orders: (q.data || []).map(function (o) {
-          var x = ordOld(o); return { ref: x.ref, created: x.created, status: x.status, items: x.items, total: x.total, shipping: x.shipping, paid: x.paid, invoiceNo: x.invoiceNo, invoice: x.invoiceNo ? invoiceHtml(x) : "" };
+          var x = ordOld(o); return { ref: x.ref, created: x.created, status: x.status, items: x.items, total: x.total, shipping: x.shipping, paid: x.paid, discType: x.discType, discValue: x.discValue, invoiceNo: x.invoiceNo, invoice: x.invoiceNo ? invoiceHtml(x) : "" };
         }) };
       }
 
@@ -161,10 +183,14 @@
         var cs = await sb.from("customers").select("*").order("created", { ascending: true }), os = await sb.from("orders").select("customer_id");
         if (cs.error) return fail(cs.error);
         var cnt = {}; (os.data || []).forEach(function (o) { if (o.customer_id) cnt[o.customer_id] = (cnt[o.customer_id] || 0) + 1; });
-        return { ok: true, customers: cs.data.map(function (c) { return { id: c.id, created: c.created, name: c.name, phone: c.phone, email: c.email, verified: !!c.verified, orders: cnt[c.id] || 0 }; }) };
+        return { ok: true, customers: cs.data.map(function (c) { return { id: c.id, created: c.created, name: c.name, phone: c.phone, email: c.email, verified: !!c.verified, orders: cnt[c.id] || 0, deleted: !!c.deleted_at, deletedAt: c.deleted_at || "" }; }) };
+      }
+      if (a === "customerDelete" || a === "customerRestore") {
+        r = await sb.rpc("admin_set_customer_deleted", { p_id: b.id, p_deleted: a === "customerDelete" });
+        return r.error ? fail(r.error) : r.data;
       }
       if (a === "orderUpdate") {
-        r = await sb.rpc("admin_update_order", { p_ref: b.ref, p_status: b.status, p_paid: !!b.paid, p_note: b.note || "", p_shipping: b.shipping === "" || b.shipping == null ? 0 : num(b.shipping) });
+        r = await sb.rpc("admin_update_order", { p_ref: b.ref, p_status: b.status, p_paid: !!b.paid, p_note: b.note || "", p_shipping: b.shipping === "" || b.shipping == null ? 0 : num(b.shipping), p_line_disc: b.lineDisc || null, p_disc_type: b.discType == null ? null : b.discType, p_disc_value: b.discType == null ? null : Math.max(0, parseInt(b.discValue, 10) || 0) });
         if (r.error) return fail(r.error);
         if (!r.data.ok) return r.data;
         var stock = {}; Object.keys(r.data.stock || {}).forEach(function (k) { stock[k] = stStr(r.data.stock[k]); });
