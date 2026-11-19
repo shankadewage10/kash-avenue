@@ -121,6 +121,7 @@
         return { ok: true, token: "session", profile: await profile() };
       }
       if (a === "order") {
+        if (b.account && !(await session())) return { ok: false, error: "auth" };
         r = await sb.rpc("place_order", { p_ref: b.ref || null, p_name: b.name || "", p_phone: phone(b.phone), p_email: String(b.email || "").trim(), p_address: b.address || "", p_items: b.items || [] });
         return r.error ? fail(r.error) : r.data;
       }

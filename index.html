@@ -165,6 +165,7 @@ footer{background:var(--deep);color:#d7e9e1}footer .cp{border-top-color:#1b7a62;
 .hero{display:grid}.hs{grid-area:1/1;opacity:0;visibility:hidden;transition:opacity .9s ease,visibility .9s;position:relative;z-index:2}.hs.on{opacity:1;visibility:visible}
 .hs.full{min-height:520px}.hs.full .wrap{display:none}.hs .fb{position:absolute;inset:0;overflow:hidden;background:#000;display:block;width:100%;height:100%;border:0;padding:0;margin:0}.hs button.fb{cursor:pointer}.hs .fb picture{display:block;width:100%;height:100%}.hs .fb img,.hs .fb video{width:100%;height:100%;max-width:none;margin:0;object-fit:cover;display:block;transform:none;animation:none}
 @media (max-width:700px){.hs.full{min-height:440px}}
+.or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;font-size:.8rem;opacity:.7}.or:before,.or:after{content:"";flex:1;border-top:1px solid currentColor;opacity:.35}.arow{display:flex;gap:8px}.arow .btn{flex:1;padding:12px 8px;font-size:.78rem;line-height:1.25}.arow .btn:first-child{flex:2}
 .hs .wrap{padding-bottom:58px}.hs.alt .slides{order:0}
 .hero .hs .slides img{opacity:1;transform:scale(1.04);animation:none}.hero .hs.on .slides img{animation:kb 8s ease-out forwards}
 .hs .copy>*{animation:none}.hs.on .copy>*{animation:rise .9s both}.hs.on .copy>:nth-child(2){animation-delay:.1s}.hs.on .copy>:nth-child(3){animation-delay:.2s}.hs.on .copy>:nth-child(4){animation-delay:.3s}
@@ -286,13 +287,16 @@ footer{background:#fff;color:#4a4436;border-top:3px solid var(--gold)}footer h4{
     <label for="ge">Email (optional, for your invoice)</label><input id="ge" type="email" autocomplete="email"></div>
     <label for="ad">Delivery address *</label><input id="ad" autocomplete="street-address">
     <p id="err" role="alert" style="margin:0 0 8px;color:#b3261e"></p>
-    <button class="btn" id="send">Place order</button>
+    <button class="btn" id="send">Place order as guest</button>
+    <div id="authrow"><p class="or"><span>or</span></p>
+      <div class="arow"><button type="button" class="btn line" data-a="open">Sign in to place your order</button><button type="button" class="btn line" data-a="reg">Sign up</button></div></div>
     <p class="note" style="margin:8px 0 0"><span id="cnote">You do not need an account. We review every order. If you give an email, we send your invoice there once we approve it.</span></p>
   </div>
   <div class="cv done" id="doneView" hidden>
     <h2>Order received</h2><h3 id="ref"></h3>
     <p>Thank you! Your order is waiting for our approval. <span id="dnote"></span> Please also tap <strong>Send</strong> in WhatsApp so we see your order straight away.</p>
     <a class="btn wa" id="again" target="_blank" rel="noopener">Open WhatsApp again</a>
+    <button class="btn line" id="myOrders" hidden>View my orders</button>
     <button class="btn line" id="newOrder">Start a new order</button>
   </div>
 </aside>
@@ -350,7 +354,7 @@ function save(){try{localStorage.setItem("ka_cart",JSON.stringify(bag.map(functi
 function load(){try{JSON.parse(localStorage.getItem("ka_cart")||"[]").forEach(function(r){var p=PRODUCTS.filter(function(x){return x.name===r.n&&!x.sold})[0];if(p&&r.q>0)bag.push({p:p,z:r.z,q:r.q})})}catch(e){}}
 function render(){save();var n=0,t=0;bag.forEach(function(i){n+=i.q;t+=i.q*i.p.price});$("#count").textContent=n;$("#ctot").textContent=n?"· "+money(t):"";$("#total").textContent=money(t);
 $("#items").innerHTML=bag.length?bag.map(function(i,k){return'<li><div><strong>'+esc(i.p.name)+'</strong><br><small>'+esc(i.z)+' · '+money(i.p.price)+'</small><div class="q"><button data-d="-1" data-k="'+k+'" aria-label="Remove one">−</button><span>'+i.q+'</span><button data-d="1" data-k="'+k+'" aria-label="Add one">+</button></div></div><strong>'+money(i.q*i.p.price)+'</strong></li>'}).join(""):'<li class="empty">Your cart is empty. Add a piece to start your order.</li>';
-$("#send").disabled=!bag.length;$("#send").style.opacity=bag.length?1:.5}
+$("#send").disabled=!bag.length;$("#send").style.opacity=bag.length?1:.5;if(bag.length&&$("#doneView")&&!$("#doneView").hidden){$("#doneView").hidden=true;$("#cartView").hidden=false}}
 function openCart(o){$("#bag").classList.toggle("on",o);$("#shade").classList.toggle("on",o);$("#bag").setAttribute("aria-hidden",!o)}
 document.addEventListener("click",function(e){
 var a=e.target.closest("[data-cat]");if(a){cat=a.dataset.cat;tiles();grid();return}
@@ -381,17 +385,18 @@ var ref="KA-"+Date.now().toString(36).toUpperCase().slice(-6),t=0;
 var l=bag.map(function(i){t+=i.q*i.p.price;return"• "+i.q+" × "+i.p.name+" (size "+i.z+") – "+money(i.q*i.p.price)});
 var m="Hi Kash Avenue, I would like to place an order.\nOrder no: "+ref+"\n\n"+l.join("\n")+"\n\nTotal: "+money(t)+"\nName: "+P.name+"\nPhone: "+P.phone+(P.email?"\nEmail: "+P.email:"")+"\nDelivery address: "+ad;
 var url=wa(m),w=window.open("about:blank","_blank");
-function reset(){btn.disabled=false;btn.textContent="Place order"}
-function done(){$("#ref").textContent=ref;$("#dnote").textContent=P.email?"Once we approve it, we email your invoice to "+P.email+".":"Once we approve it, we will confirm with you on WhatsApp.";$("#again").href=url;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
+function reset(){btn.disabled=false;btn.textContent=ACC?"Place order":"Place order as guest"}
+function done(){$("#ref").textContent=ref;$("#dnote").textContent=P.email?"Once we approve it, we email your invoice to "+P.email+".":"Once we approve it, we will confirm with you on WhatsApp.";$("#again").href=url;bag=[];render();$("#myOrders").hidden=!ACC;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
 if(!API_URL){done();return}
 btn.disabled=true;btn.textContent="Placing your order…";
 var ctl=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ctl)ctl.abort()},12000);
-kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},signal:ctl?ctl.signal:undefined,body:JSON.stringify({action:"order",name:gn,phone:dg,email:ge,ref:ref,address:ad,items:bag.map(function(i){return{name:i.p.name,size:i.z,qty:i.q,price:i.p.price}})})})
+kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},signal:ctl?ctl.signal:undefined,body:JSON.stringify({action:"order",account:!!ACC,name:gn,phone:dg,email:ge,ref:ref,address:ad,items:bag.map(function(i){return{name:i.p.name,size:i.z,qty:i.q,price:i.p.price}})})})
 .then(function(r){return r.json()}).then(function(r){clearTimeout(to);
 if(r&&r.ok===false&&r.error==="stock"){if(w)w.close();reset();$("#err").textContent="Sorry, not enough stock: "+r.short.map(function(x){return x.name+" ("+x.size+") - only "+x.left+" left"}).join(", ")+". Please change your cart.";refreshProducts();return}
 if(r&&r.ok===false&&r.error==="auth"){if(w)w.close();reset();ACC=null;accSave();aView("in","Your session has expired. Please sign in again.");return}
 if(r&&r.ok===false){if(w)w.close();reset();$("#err").textContent=r.error||"Sorry, we could not place your order.";return}
 done()}).catch(function(){clearTimeout(to);if(w)w.close();reset();$("#err").textContent="We could not reach the shop. Please check your connection and try again."})};
+$("#myOrders").onclick=function(){aView("acct")};
 $("#newOrder").onclick=function(){bag=[];render();$("#doneView").hidden=true;$("#cartView").hidden=false;openCart(false)};
 var DEFS={};
 function T(id,v){var e=$("#"+id);if(!e)return;if(!(id in DEFS))DEFS[id]=e.textContent;e.textContent=v||DEFS[id]}
@@ -463,9 +468,10 @@ var ACC=null;try{ACC=JSON.parse(localStorage.getItem("ka_acc")||"null")}catch(e)
 var AV={email:""},MY=[],ST={New:"Pending approval",Confirmed:"Approved",Packed:"Packed",Shipped:"Shipped",Delivered:"Delivered",Cancelled:"Cancelled"};
 function apiPost(b){return kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(b)}).then(function(r){return r.json()})}
 function who(){var e=$("#who");if(!e)return;
-e.innerHTML=!API_URL?"":ACC?'Ordering as <b>'+esc(ACC.p.name)+'</b><br>'+esc(ACC.p.phone)+(ACC.p.email?' · '+esc(ACC.p.email):'')+' · <a href="#" data-a="out">Sign out</a>':'Have an account? <a href="#" data-a="open">Sign in</a> (optional)';
-var gf=$("#gf");if(gf)gf.hidden=!!ACC;
-var cn=$("#cnote");if(cn)cn.textContent=ACC?"We review every order. Once we approve it, your invoice is emailed to "+(ACC.p.email||"you")+".":"You do not need an account. We review every order. If you give an email, we send your invoice there once we approve it."}
+e.innerHTML=!API_URL?"":ACC?'Ordering as <b>'+esc(ACC.p.name)+'</b><br>'+esc(ACC.p.phone)+(ACC.p.email?' · '+esc(ACC.p.email):'')+'<br><a href="#" data-a="acct">My orders</a> · <a href="#" data-a="out">Sign out</a>':'';
+var gf=$("#gf");if(gf)gf.hidden=!!ACC;var ar=$("#authrow");if(ar)ar.hidden=!!ACC||!API_URL;
+var sb=$("#send");if(sb&&!/^Placing/.test(sb.textContent))sb.textContent=ACC?"Place order":"Place order as guest";
+var cn=$("#cnote");if(cn)cn.textContent=ACC?"We review every order. Once we approve it, your invoice is emailed to "+(ACC.p.email||"you")+".":"We review every order. If you give an email, we send your invoice there once we approve it."}
 function accSave(){try{if(ACC)localStorage.setItem("ka_acc",JSON.stringify(ACC));else localStorage.removeItem("ka_acc")}catch(e){}$("#acc").textContent=ACC?"Hi, "+ACC.p.name.split(" ")[0]:"Sign in";who()}
 function aClose(){$("#am").hidden=true}
 function fi(id,lab,type,val,ac){return'<label for="'+id+'">'+lab+'</label><input id="'+id+'" type="'+(type||"text")+'" value="'+esc(val||"")+'" autocomplete="'+(ac||"off")+'">'}
@@ -486,6 +492,7 @@ function afterAuth(r){ACC={t:r.token,p:r.profile};accSave();aClose();toast("Sign
 document.addEventListener("click",function(e){
 var iv=e.target.closest("[data-ainv]");if(iv){var o=MY[+iv.dataset.ainv],w=window.open("","_blank");if(w){w.document.write(o.invoice.replace("</body>",'<p style="text-align:center"><button onclick="window.print()" style="padding:10px 22px;font-size:15px">Print or save as PDF</button></p></body>'));w.document.close()}return}
 var a=e.target.closest("[data-a]");if(!a)return;e.preventDefault();var k=a.dataset.a,g=function(id){return(($("#"+id)||{}).value||"").trim()},pv=function(id){return($("#"+id)||{}).value||""};
+if(k==="acct"){aView("acct");return}
 if(k==="open"){aView("in");return}
 if(k==="in"||k==="reg"||k==="forgot"){aView(k);return}
 if(k==="out"){kaSignOut();ACC=null;accSave();aClose();return}
