@@ -125,6 +125,10 @@
         r = await sb.rpc("place_order", { p_ref: b.ref || null, p_name: b.name || "", p_phone: phone(b.phone), p_email: String(b.email || "").trim(), p_address: b.address || "", p_items: b.items || [] });
         return r.error ? fail(r.error) : r.data;
       }
+      if (a === "profile") {
+        r = await sb.rpc("update_my_profile", { p_name: String(b.name || ""), p_phone: phone(b.phone) });
+        return r.error ? fail(r.error) : r.data;
+      }
       if (a === "me") {
         var s = await session(), p = s && await profile(); if (!p) return { ok: false, error: "auth" };
         var q = await sb.from("orders").select("*").eq("customer_id", s.user.id).order("created", { ascending: false });
