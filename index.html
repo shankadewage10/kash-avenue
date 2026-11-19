@@ -372,7 +372,7 @@ $("#openBag").onclick=function(){openCart(true)};$("#closeBag").onclick=$("#shad
 document.addEventListener("keydown",function(e){if(e.key==="Escape")openCart(false)});
 $("#send").onclick=function(){
 if(!bag.length)return;var btn=this,ad=$("#ad").value.trim();
-var src=ACC?{n:ACC.p.name,p:ACC.p.phone,e:ACC.p.email}:{n:$("#gn").value,p:$("#gp").value,e:$("#ge").value};
+var okp=!!(ACC&&ACC.p.name&&ACC.p.phone),src=okp?{n:ACC.p.name,p:ACC.p.phone,e:ACC.p.email}:{n:$("#gn").value,p:$("#gp").value,e:$("#ge").value};
 var gn=String(src.n||"").trim(),gp=String(src.p||"").trim(),ge=String(src.e||"").trim(),dg=gp.replace(/\D/g,"");
 if(dg.charAt(0)==="0"&&dg.length===10)dg="94"+dg.slice(1);else if(dg.length===9)dg="94"+dg;
 if(gn.length<2){$("#err").textContent="Please enter your name.";return}
@@ -386,7 +386,7 @@ var l=bag.map(function(i){t+=i.q*i.p.price;return"• "+i.q+" × "+i.p.name+" (s
 var m="Hi Kash Avenue, I would like to place an order.\nOrder no: "+ref+"\n\n"+l.join("\n")+"\n\nTotal: "+money(t)+"\nName: "+P.name+"\nPhone: "+P.phone+(P.email?"\nEmail: "+P.email:"")+"\nDelivery address: "+ad;
 var url=wa(m),w=window.open("about:blank","_blank");
 function reset(){btn.disabled=false;btn.textContent=ACC?"Place order":"Place order as guest"}
-function done(){$("#ref").textContent=ref;$("#dnote").textContent=P.email?"Once we approve it, we email your invoice to "+P.email+".":"Once we approve it, we will confirm with you on WhatsApp.";$("#again").href=url;bag=[];render();$("#myOrders").hidden=!ACC;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
+function done(){$("#ref").textContent=ref;$("#dnote").textContent=P.email?"Once we approve it, we email your invoice to "+P.email+".":"Once we approve it, we will confirm with you on WhatsApp.";$("#again").href=url;bag=[];render();if(ACC&&!okp&&API_URL){apiPost({action:"profile",name:gn,phone:dg}).then(function(r){if(r&&r.ok){ACC.p.name=gn;ACC.p.phone=dg;accSave()}}).catch(function(){})}$("#myOrders").hidden=!ACC;$("#cartView").hidden=true;$("#doneView").hidden=false;reset();if(w)w.location.href=url;else window.location.href=url}
 if(!API_URL){done();return}
 btn.disabled=true;btn.textContent="Placing your order…";
 var ctl=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ctl)ctl.abort()},12000);
@@ -467,9 +467,11 @@ hplay();
 var ACC=null;try{ACC=JSON.parse(localStorage.getItem("ka_acc")||"null")}catch(e){}
 var AV={email:""},MY=[],ST={New:"Pending approval",Confirmed:"Approved",Packed:"Packed",Shipped:"Shipped",Delivered:"Delivered",Cancelled:"Cancelled"};
 function apiPost(b){return kaFetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(b)}).then(function(r){return r.json()})}
-function who(){var e=$("#who");if(!e)return;
-e.innerHTML=!API_URL?"":ACC?'Ordering as <b>'+esc(ACC.p.name)+'</b><br>'+esc(ACC.p.phone)+(ACC.p.email?' · '+esc(ACC.p.email):'')+'<br><a href="#" data-a="acct">My orders</a> · <a href="#" data-a="out">Sign out</a>':'';
-var gf=$("#gf");if(gf)gf.hidden=!!ACC;var ar=$("#authrow");if(ar)ar.hidden=!!ACC||!API_URL;
+function who(){var e=$("#who");if(!e)return;var okp=!!(ACC&&ACC.p.name&&ACC.p.phone);
+e.innerHTML=!API_URL?"":ACC?'Ordering as <b>'+esc(ACC.p.name||ACC.p.email)+'</b>'+(okp?'<br>'+esc(ACC.p.phone)+(ACC.p.email?' · '+esc(ACC.p.email):''):'<br>Please confirm your name and phone number below.')+'<br><a href="#" data-a="acct">My orders</a> · <a href="#" data-a="out">Sign out</a>':'';
+var gf=$("#gf");if(gf)gf.hidden=okp;
+if(ACC&&!okp&&$("#gn")){if(!$("#gn").value)$("#gn").value=ACC.p.name||"";if(!$("#gp").value)$("#gp").value=ACC.p.phone||"";if(!$("#ge").value)$("#ge").value=ACC.p.email||""}
+var ar=$("#authrow");if(ar)ar.hidden=!!ACC||!API_URL;
 var sb=$("#send");if(sb&&!/^Placing/.test(sb.textContent))sb.textContent=ACC?"Place order":"Place order as guest";
 var cn=$("#cnote");if(cn)cn.textContent=ACC?"We review every order. Once we approve it, your invoice is emailed to "+(ACC.p.email||"you")+".":"We review every order. If you give an email, we send your invoice there once we approve it."}
 function accSave(){try{if(ACC)localStorage.setItem("ka_acc",JSON.stringify(ACC));else localStorage.removeItem("ka_acc")}catch(e){}$("#acc").textContent=ACC?"Hi, "+ACC.p.name.split(" ")[0]:"Sign in";who()}
