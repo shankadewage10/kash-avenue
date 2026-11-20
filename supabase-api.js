@@ -19,7 +19,7 @@
   function ordOld(o) {
     return { ref: o.ref, created: o.created, status: o.status, name: o.name || "", phone: o.phone || "", address: o.address || "",
       items: o.items || [], total: String(o.total || 0), paid: o.paid ? "yes" : "", note: o.note || "", deducted: o.deducted ? "yes" : "",
-      email: o.email || "", cid: o.customer_id || "", shipping: o.shipping > 0 ? String(o.shipping) : "", invoiceNo: o.invoice_no || "", invoiceSent: o.invoice_sent || "", discType: o.discount_type || "", discValue: o.discount_value || 0 };
+      email: o.email || "", cid: o.customer_id || "", shipping: o.shipping > 0 ? String(o.shipping) : "", invoiceNo: o.invoice_no || "", invoiceSent: o.invoice_sent || "", discType: o.discount_type || "", discValue: o.discount_value || 0, deleted: !!o.deleted_at, deletedAt: o.deleted_at || "" };
   }
   // Same maths as the database: line discounts, then order discount, then delivery.
   function calcOrder(o) {
@@ -45,8 +45,13 @@
         "<td style='" + cell + ";text-align:right'>" + money(l.net) + "</td></tr>";
     }).join("");
     var odLabel = "Order discount" + (o.discType === "pct" ? " (" + Math.min(o.discValue, 100) + "%)" : "");
-    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Invoice " + esc(o.invoiceNo) + "</title></head><body style='margin:0;background:#f6f1e7;font-family:Arial,Helvetica,sans-serif;color:#1a1405'>" +
-      "<div style='max-width:680px;margin:0 auto;background:#fff;padding:32px;border-top:6px solid #c9a24d'>" +
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Invoice " + esc(o.invoiceNo) + "</title><style>" +
+      "@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0;background:#e9e4d8}" +
+      ".sheet{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:16mm 15mm;font-family:Arial,Helvetica,sans-serif;color:#1a1405;border-top:2mm solid #c9a24d;box-shadow:0 0 8px rgba(0,0,0,.25)}" +
+      ".sheet table{width:100%}tr{page-break-inside:avoid}.noprint{text-align:center;padding:12px}.noprint button{padding:10px 22px;font-size:15px;cursor:pointer}" +
+      "@media print{html,body{background:#fff}.sheet{margin:0;box-shadow:none}.noprint{display:none}}" +
+      "@media screen and (max-width:820px){.sheet{width:100%;min-height:0;padding:20px}}" +
+      "</style></head><body><div class='noprint'><button onclick='window.print()'>Print or save as PDF (A4)</button></div><div class='sheet'>" +
       "<table width='100%'><tr><td><div style='font-size:28px;letter-spacing:4px'><b>" + esc(BIZ.name).toUpperCase() + "</b></div><div style='color:#9a7420;font-size:12px;letter-spacing:3px'>WEAR YOUR STORY</div></td>" +
       "<td style='text-align:right'><div style='font-size:22px;color:#9a7420'><b>INVOICE</b></div><div style='font-size:13px'>No: " + esc(o.invoiceNo) + "<br>Order: " + esc(o.ref) + "<br>Date: " + esc(isNaN(d) ? "" : d.toDateString()) + "</div></td></tr></table>" +
       "<table width='100%' style='margin:22px 0;font-size:14px'><tr><td valign='top'><b>Bill to</b><br>" + esc(o.name) + "<br>" + esc(o.phone) + "<br>" + esc(o.email) + "<br>" + esc(o.address) + "</td>" +
@@ -153,7 +158,7 @@
       }
       if (a === "me") {
         var s = await session(), p = s && await profile(); if (!p || await isRemoved(s.user.id)) return { ok: false, error: "auth" };
-        var q = await sb.from("orders").select("*").eq("customer_id", s.user.id).order("created", { ascending: false });
+        var q = await sb.from("orders").select("*").eq("customer_id", s.user.id).is("deleted_at", null).order("created", { ascending: false });
         return { ok: true, profile: p, orders: (q.data || []).map(function (o) {
           var x = ordOld(o); return { ref: x.ref, created: x.created, status: x.status, items: x.items, total: x.total, shipping: x.shipping, paid: x.paid, discType: x.discType, discValue: x.discValue, invoiceNo: x.invoiceNo, invoice: x.invoiceNo ? invoiceHtml(x) : "" };
         }) };
@@ -176,8 +181,8 @@
         return r.error ? fail(r.error) : { ok: true };
       }
       if (a === "orders") {
-        r = await sb.from("orders").select("*").order("created", { ascending: true });
-        return r.error ? fail(r.error) : { ok: true, orders: r.data.map(ordOld) };
+        r = await sb.from("orders").select("*").order("created", { ascending: false }).limit(1000);
+        return r.error ? fail(r.error) : { ok: true, orders: r.data.slice().reverse().map(ordOld) };
       }
       if (a === "customers") {
         var cs = await sb.from("customers").select("*").order("created", { ascending: true }), os = await sb.from("orders").select("customer_id");
@@ -188,6 +193,13 @@
       if (a === "customerDelete" || a === "customerRestore") {
         r = await sb.rpc("admin_set_customer_deleted", { p_id: b.id, p_deleted: a === "customerDelete" });
         return r.error ? fail(r.error) : r.data;
+      }
+      if (a === "orderDelete" || a === "orderRestore") {
+        r = await sb.rpc("admin_set_order_deleted", { p_ref: b.ref, p_deleted: a === "orderDelete" });
+        if (r.error) return fail(r.error);
+        if (!r.data.ok) return r.data;
+        var st2 = {}; Object.keys(r.data.stock || {}).forEach(function (k) { st2[k] = stStr(r.data.stock[k]); });
+        return { ok: true, stock: st2, deletedAt: r.data.deletedAt || "" };
       }
       if (a === "orderUpdate") {
         r = await sb.rpc("admin_update_order", { p_ref: b.ref, p_status: b.status, p_paid: !!b.paid, p_note: b.note || "", p_shipping: b.shipping === "" || b.shipping == null ? 0 : num(b.shipping), p_line_disc: b.lineDisc || null, p_disc_type: b.discType == null ? null : b.discType, p_disc_value: b.discType == null ? null : Math.max(0, parseInt(b.discValue, 10) || 0) });
