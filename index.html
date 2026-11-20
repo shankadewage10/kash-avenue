@@ -492,7 +492,7 @@ function aErr(t){var e=$("#amsg");if(e)e.textContent=t||""}
 function aCall(btn,body,fn){btn.disabled=true;aErr("");apiPost(body).then(function(r){btn.disabled=false;fn(r)}).catch(function(){btn.disabled=false;aErr("Could not connect. Please try again.")})}
 function afterAuth(r){ACC={t:r.token,p:r.profile};accSave();aClose();toast("Signed in as "+ACC.p.name);if(bag.length)openCart(true)}
 document.addEventListener("click",function(e){
-var iv=e.target.closest("[data-ainv]");if(iv){var o=MY[+iv.dataset.ainv],w=window.open("","_blank");if(w){w.document.write(o.invoice.replace("</body>",'<p style="text-align:center"><button onclick="window.print()" style="padding:10px 22px;font-size:15px">Print or save as PDF</button></p></body>'));w.document.close()}return}
+var iv=e.target.closest("[data-ainv]");if(iv){var o=MY[+iv.dataset.ainv],w=window.open("","_blank");if(w){w.document.write(o.invoice);w.document.close()}return}
 var a=e.target.closest("[data-a]");if(!a)return;e.preventDefault();var k=a.dataset.a,g=function(id){return(($("#"+id)||{}).value||"").trim()},pv=function(id){return($("#"+id)||{}).value||""};
 if(k==="acct"){aView("acct");return}
 if(k==="open"){aView("in");return}
