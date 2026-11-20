@@ -38,7 +38,7 @@
     var cell = "padding:8px;border-bottom:1px solid #eadfc2";
     var rows = o.items.map(function (i, n) {
       var l = c.lines[n];
-      return "<tr><td style='" + cell + "'>" + esc(i.name) + "<br><span style='color:#777;font-size:12px'>Size " + esc(i.size) + "</span></td>" +
+      return "<tr><td style='" + cell + "'>" + esc(i.name) + "<br><span style='color:#777;font-size:12px'>" + (i.code ? esc(i.code) + " · " : "") + "Size " + esc(i.size) + "</span></td>" +
         "<td style='" + cell + ";text-align:center'>" + i.qty + "</td>" +
         "<td style='" + cell + ";text-align:right'>" + money(i.price) + "</td>" +
         (anyLine ? "<td style='" + cell + ";text-align:right;color:#a33'>" + (l.disc > 0 ? "&minus;" + money(l.disc) + (l.type === "pct" ? "<br><span style='font-size:12px'>(" + l.val + "%)</span>" : "") : "") + "</td>" : "") +
@@ -95,7 +95,7 @@
     if (res[0].error) throw res[0].error;
     var st = {}; (res[1].data || []).forEach(function (r) { st[r.key] = r.value; });
     return { v: 3, settings: st, products: res[0].data.map(function (p) {
-      return { name: p.name, code: p.code || "", category: p.category, price: String(p.price), sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stStr(p.stock) };
+      return { id: p.id, name: p.name, code: p.code || "", category: p.category, price: String(p.price), sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stStr(p.stock) };
     }) };
   }
 
@@ -168,12 +168,12 @@
       if (a === "ping") { r = await sb.rpc("is_admin"); return r.data === true ? { ok: true } : { ok: false, error: "This account is not an admin." }; }
       if (a === "save") {
         r = await sb.rpc("admin_save_products", { p_products: (b.products || []).map(function (p) {
-          return { name: p.name, code: p.code, category: p.category, price: p.price, sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stObj(p.stock) };
+          return { id: p.id || null, name: p.name, code: p.code, category: p.category, price: p.price, sizes: p.sizes, colour: p.colour, image: p.image, status: p.status, badge: p.badge, stock: stObj(p.stock) };
         }) });
         return r.error ? fail(r.error) : { ok: true };
       }
       if (a === "stockSet") {
-        r = await sb.rpc("admin_set_stock", { p_updates: (b.updates || []).map(function (x) { return { name: x.name, stock: stObj(x.stock) }; }) });
+        r = await sb.rpc("admin_set_stock", { p_updates: (b.updates || []).map(function (x) { return { code: x.code || "", name: x.name, stock: stObj(x.stock) }; }) });
         return r.error ? fail(r.error) : r.data;
       }
       if (a === "saveSettings") {
